@@ -28,6 +28,8 @@ board[0].threshold_db = -40
 # Run the audio through this pedalboard!
 effected = board(audio, samplerate)
 
+i
+
 # Write the audio back as a wav file:
 with AudioFile('processed-output.wav', 'w', samplerate, effected.shape[0]) as f:
   f.write(effected)
