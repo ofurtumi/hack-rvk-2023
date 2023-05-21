@@ -1,35 +1,21 @@
-# Don't do import *! (It just makes this example smaller)
-from pedalboard import *
+from pedalboard import Pedalboard, Chorus, Reverb, Delay
 from pedalboard.io import AudioFile
 
-# Read in a whole file, resampling to our desired sample rate:
-samplerate = 5128.0
-with AudioFile('JH.wav').resampled_to(samplerate) as f:
-  audio = f.read(f.frames)
+# Make a Pedalboard object, containing multiple audio plugins:
+board = Pedalboard([Chorus(), Delay()])
 
-# Make a pretty interesting sounding guitar pedalboard:
-board = Pedalboard([
-    Compressor(threshold_db=-50, ratio=25),
-    Gain(gain_db=30),
-    Chorus(),
-    LadderFilter(mode=LadderFilter.Mode.HPF12, cutoff_hz=900),
-    Phaser(),
-    Reverb(room_size=0.25),
-])
+# Open an audio file for reading, just like a regular file:
+with AudioFile('JH.wav') as f:
+  # Open an audio file to write to:
+  with AudioFile('output.wav', 'w', f.samplerate, f.num_channels) as o:
 
-# Pedalboard objects behave like lists, so you can add plugins:
-board.append(Compressor(threshold_db=-25, ratio=10))
-board.append(Gain(gain_db=10))
-board.append(Limiter())
+    # Read one second of audio at a time, until the file is empty:
+    while f.tell() < f.frames:
+      chunk = f.read(int(f.samplerate))
 
-# ... or change parameters easily:
-board[0].threshold_db = -40
+      # Run the audio through our pedalboard:
+      effected = board(chunk, f.samplerate, reset=False)
 
-# Run the audio through this pedalboard!
-effected = board(audio, samplerate)
+      # Write the output to our output file:
+      o.write(effected)
 
-i
-
-# Write the audio back as a wav file:
-with AudioFile('processed-output.wav', 'w', samplerate, effected.shape[0]) as f:
-  f.write(effected)

@@ -1,53 +1,42 @@
 from genki_signals.system import System
 from genki_signals.sources import WaveSource
 from genki_wave.discover import run_discover_bluetooth
-from time import sleep
 from sound import *
-from riff import Riff
-import subprocess
+from time import sleep
 
-ble_address = ""
-if input("Use default address? (y/n): ") == "y":
-    ble_address = "CD:05:D8:8A:2F:D0" 
-else:
-    run_discover_bluetooth()
-    exit()
+def wave_init(ble_address = "F8:17:0E:EF:AB:82"):
+    ws = WaveSource(ble_address)
+    system = System(ws, [])
+    system.start()
+    return ws, system
 
-ws = WaveSource(ble_address)
-
-wf, stream, p = init_stream("JH.wav")
-system = System(ws, [])
-system.start()
-aerostar = False
-forever = True
-cooldown = 0
-try:
-    while forever: 
-        if aerostar:
-            write_stream(wf, stream, 2)
-        else:
-            write_stream(wf, stream, 1)
-
-        if (cooldown <= 0 and ws.latest_point != None):
-            points = ws.latest_point["linacc"] < -4.5
-            if any(points):
-                # subprocess.run(["ffplay", "-v", "0", "-nodisp", "-autoexit", "punch.mp3"]) 
-                if aerostar:
-                    aerostar = False
-                    print("aerostar")
-                else:
-                    aerostar = True
-                    print("ratsorea")
-                print(points)
-                cooldown = 50
-
-        print(cooldown)
-        cooldown = cooldown - 1
-
-
-except KeyboardInterrupt:
-    print("Exiting...")
-    killstream(stream, p)
-    forever = False
+def wave_kill(ws, system):
+    ws.stop()
     system.stop()
-    exit()
+
+
+def wave_check(ws, system, state, cooldown):
+    if (cooldown <= 0 and ws.latest_point != None):
+        points = ws.latest_point["linacc"] < -4.5
+        if any(points):
+            # subprocess.run(["ffplay", "-v", "0", "-nodisp", "-autoexit", "punch.mp3"])
+            if state:
+                state = False
+            else:
+                state = True
+            print(points)
+            cooldown = 10
+
+    return state, cooldown - 1
+
+# if __name__ == "__main__":
+#     ws, system = wave_init()
+#     state, cooldown = False, 0
+#     try:
+#         while True:
+#             state, cooldown = wave_check(ws, system, state, cooldown)
+#             print(state, cooldown)
+#     except KeyboardInterrupt:
+#         wave_kill(ws, system)
+#
+

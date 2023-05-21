@@ -5,14 +5,15 @@ import keyboard
 import soundfile as sf
 import pyaudio
 from pedalboard import Plugin, Gain, Pedalboard, Compressor, Distortion, Reverb, Chorus, Phaser, Delay, PitchShift
+from ring import wave_init, wave_kill, wave_check
 
 compressor = Compressor(threshold_db=-18, ratio=2, attack_ms=10, release_ms=100)
 distortion = Distortion(drive_db=25)
 gain = Gain(gain_db=-20)
 reverb = Reverb(room_size=0.75, damping=0.2)
-chorus = Chorus(rate_hz=5.0, depth=2, centre_delay_ms=7.0, feedback=0.7, mix=0.5)
+chorus = Chorus(rate_hz=0.25, depth=2, centre_delay_ms=7.0, feedback=0.7, mix=0.5)
 phaser = Phaser(rate_hz=1.0, depth=0.5, centre_frequency_hz=1300.0, feedback=0.0, mix=0.5)
-delay = Delay(delay_seconds=2, feedback=0.9, mix=0.5)
+delay = Delay(delay_seconds=2, feedback=0.2, mix=0.9)
 pitchshift = PitchShift(semitones=-0.000005)
 
 synthcompressor = Compressor(threshold_db=-20, ratio=4)
@@ -28,7 +29,7 @@ pedalboard = Pedalboard()
 # pedalboard.append(phaser)
 # pedalboard.append(pitchshift)
 
-input_file = 'The Jimi Hendrix Experience - All Along The Watchtower (Official Audio).wav'
+input_file = 'JH.wav'
 audio, sample_rate = sf.read(input_file)
 originalaudio = audio
 current_pos = 0
@@ -55,6 +56,8 @@ def apply_synth_effect(audio_data, gain=200, volume=0.10):
 is_shift_pressed = False
 is_alt_pressed = False
 is_ctrl_pressed = False
+ring_swing = False
+ring_effects = False
 
 
 def on_press(key):
@@ -62,6 +65,9 @@ def on_press(key):
     global is_alt_pressed
     global is_ctrl_pressed
     global audio
+    global ring_swing
+    global ring_effects
+
     if key.name == 'shift' and not is_shift_pressed:
         is_shift_pressed = True
         audio = apply_tremolo_effect(audio, sample_rate)
@@ -82,6 +88,9 @@ def on_release(key):
     global is_alt_pressed
     global is_ctrl_pressed
     global audio
+    global ring_swing
+    global ring_effects
+
     if key.name == 'shift' and is_shift_pressed:
         is_shift_pressed = False
         audio = originalaudio
@@ -118,6 +127,8 @@ def callback(in_data, frame_count, time_info, status):
     return processed_audio.tobytes(), pyaudio.paContinue
 
 
+ws, system = wave_init()
+
 p = pyaudio.PyAudio()
 stream = p.open(format=pyaudio.paFloat32,
                 channels=audio.shape[1],
@@ -128,14 +139,30 @@ stream = p.open(format=pyaudio.paFloat32,
 
 stream.start_stream()
 
+state, cooldown = False, 0
+
 try:
     while current_pos < len(audio):
+        state, cooldown = wave_check(ws, system, state, cooldown)
+        print(state, cooldown)
+        ring_swing = state
+        if ring_swing and not ring_effects:
+            ring_effects = True
+            # pedalboard.append(chorus)
+            pedalboard.append(delay)
+
+        if not ring_swing and ring_effects:
+            ring_effects = False
+            # pedalboard.remove(chorus)
+            pedalboard.remove(delay)
+
         if not stream.is_active():
             break
         time.sleep(0.1)
 except KeyboardInterrupt:
     print("Program interrupted by the user.")
 
+wave_kill(ws, system)
 stream.stop_stream()
 stream.close()
 
